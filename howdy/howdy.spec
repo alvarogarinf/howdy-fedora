@@ -7,7 +7,7 @@
 
 Name:           howdy
 Version:        3.0.0
-Release:        6%{?dist}
+Release:        10%{?dist}
 Summary:        Windows Hello style facial authentication for Linux
 
 # howdy: MIT
@@ -47,6 +47,9 @@ Requires:       python3dist(dlib)
 Requires:       python3dist(numpy)
 Requires:       python3dist(opencv)
 Requires:       (%{name}-selinux = %{version}-%{release} if selinux-policy-%{selinuxtype})
+# Not shipped here; the howdy-gtk of other COPRs requires their exact howdy
+# build and would keep dnf from upgrading to this package
+Obsoletes:      %{name}-gtk < 3.0.0-10
 
 %description
 Howdy provides Windows Hello style authentication for Linux. It uses the
@@ -227,6 +230,12 @@ fi
 
 
 %changelog
+* Thu Sep 24 2026 Alvaro Garcia Infante <alvarogarciainfante@gmail.com> - 3.0.0-10
+- Skip to Release 10 so dnf upgrades howdy 3.0.0-7 from principis/howdy-beta
+  and 3.0.0-9 from ronnypfannschmidt/howdy-beta
+- Obsolete howdy-gtk from those COPRs: it requires their exact howdy build and
+  blocked the upgrade
+
 * Thu Sep 24 2026 Alvaro Garcia Infante <alvarogarciainfante@gmail.com> - 3.0.0-6
 - Clarify model removal and the rubberstamp timeout modes in README.fedora
 
