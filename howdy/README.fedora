@@ -1,0 +1,147 @@
+Howdy on Fedora
+===============
+
+This package installs Howdy but does NOT enable it. Nothing in /etc/pam.d is
+modified on install, upgrade or removal: you decide where face
+authentication is used, and your password always keeps working.
+
+The installation section of the upstream README.md does not apply to this
+package; follow this file instead.
+
+Face recognition is more convenient than a password, not more secure. A
+similar-looking person or a good photo may be enough to unlock your account.
+
+
+1. Configure the camera
+-----------------------
+
+Find your IR camera. Stable paths live in /dev/v4l/by-path/:
+
+    ls -l /dev/v4l/by-path/
+    v4l2-ctl --list-devices        # from the v4l-utils package
+
+A camera can expose several nodes; if `sudo howdy test` shows no image or a
+colour image, try the next one. Set it and try it:
+
+    sudo howdy set device_path /dev/v4l/by-path/<your-ir-camera>
+    sudo howdy test
+
+`sudo howdy config` opens the whole configuration in $EDITOR (nano or vi
+by default).
+
+
+2. Enroll your face
+-------------------
+
+    sudo howdy add
+
+Face models are stored in /etc/howdy/models/<user>.dat. They must be
+readable by all local users because the KDE Plasma lock screen runs the
+check as your own user, not as root.
+
+Howdy writes the model file with the umask of the command that runs it. With
+a strict umask such as 077 the file ends up 0600 and the KDE lock screen
+cannot read it. After `howdy add`, or after `howdy remove` if the file still
+exists, check and fix the permissions:
+
+    ls -l /etc/howdy/models/
+    sudo chmod 0644 /etc/howdy/models/$USER.dat
+
+
+3. Enable Howdy in PAM
+----------------------
+
+Only use this recipe for services that ask for a PASSWORD ALONE.
+
+A "sufficient" module that succeeds ends the authentication stack: every
+module after it is skipped, including any mandatory second factor. Check
+your configuration first:
+
+    authselect current
+
+If it lists with-pam-u2f-2fa (security key required), or the service uses
+any other mandatory factor (smart card, OTP, a "required" auth module after
+the password), do NOT add pam_howdy.so as below: a recognised face would skip
+both the password and the second factor. Combining Howdy with a mandatory
+second factor is not covered by this package.
+
+Add this line as the FIRST "auth" line of each PAM service where you want
+face authentication (after the pam_selinux_permit.so line, if there is one):
+
+    auth        sufficient    pam_howdy.so
+
+"sufficient" means a recognised face logs you in, and anything else (no
+face, no camera, timeout, error) falls through to the normal password
+prompt.
+
+Keep a root shell open (`sudo -i`) while editing, and test from a NEW
+terminal before closing it, so a typo cannot lock you out of sudo.
+
+Do not edit system-auth or password-auth: authselect owns them and will
+overwrite your changes. Edit only the per-service files below.
+
+  Where                              File
+  ---------------------------------  ----------------------------------------
+  sudo                               /etc/pam.d/sudo
+  GDM login and GNOME lock screen    /etc/pam.d/gdm-password
+  SDDM login                         /etc/pam.d/sddm
+  Plasma Login Manager               /etc/pam.d/plasmalogin (see below)
+  KDE Plasma lock screen             /etc/pam.d/kde
+
+Plasma Login Manager ships its configuration in /usr/lib/pam.d. Copy it to
+/etc/pam.d, which takes precedence, and edit the copy:
+
+    sudo cp /usr/lib/pam.d/plasmalogin /etc/pam.d/plasmalogin
+
+Example, /etc/pam.d/sudo:
+
+    #%PAM-1.0
+    auth       sufficient   pam_howdy.so
+    auth       include      system-auth
+    account    include      system-auth
+    ...
+
+If you previously installed Howdy by hand, replace any
+/usr/local/lib64/security/pam_howdy.so path with plain pam_howdy.so and
+remove the manual installation.
+
+
+4. SELinux
+----------
+
+On SELinux systems the howdy-selinux package is installed automatically.
+It lets the login screen and the GDM unlock prompt (domain xdm_t) use the
+camera. Check that it is loaded:
+
+    sudo semodule -l | grep howdy
+
+If face authentication works with sudo but not at the login or lock
+screen, look for denials:
+
+    sudo ausearch -m avc -ts recent
+
+
+5. Limitations of this package
+------------------------------
+
+- Only the default recorder, recording_plugin = opencv, is supported. The
+  ffmpeg and pyv4l2 recorders and the "hotkey" rubberstamp need Python
+  modules that Fedora does not ship. Do NOT install them with pip: modules
+  installed with pip into /usr/local are not seen when PAM runs Howdy, and
+  they can conflict with packaged ones.
+- The howdy-gtk interface is not packaged. Howdy works without it.
+- Rubberstamps (disabled by default): unlike upstream, a stamp that fails
+  with an internal error rejects the login, whatever its failsafe or
+  faildeadly mode; an empty or invalid rule also rejects the login. Those
+  modes only decide what a timeout does: `failsafe` rejects the login,
+  while `faildeadly` accepts it. Use `failsafe` if the gesture is required.
+  The "nod" stamp also works with use_cnn = true in this package.
+- Logging in by face does not give your password to GNOME Keyring or
+  KWallet, so they may ask for it after login.
+
+
+6. Uninstalling
+---------------
+
+Remove the pam_howdy.so lines from every file you edited BEFORE removing
+the package.

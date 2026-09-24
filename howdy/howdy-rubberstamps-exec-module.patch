@@ -1,0 +1,22 @@
+--- a/howdy/src/rubberstamps/__init__.py
++++ b/howdy/src/rubberstamps/__init__.py
+@@ -4,7 +4,7 @@
+ 
+ from i18n import _
+ 
+-from importlib.machinery import SourceFileLoader
++from importlib.util import spec_from_file_location, module_from_spec
+ 
+ 
+ class RubberStamp:
+@@ -88,7 +88,9 @@
+ 			continue
+ 
+ 		# Load the module from file
+-		module = SourceFileLoader(type, dir_path + "/" + type + ".py").load_module()
++		spec = spec_from_file_location(type, dir_path + "/" + type + ".py")
++		module = module_from_spec(spec)
++		spec.loader.exec_module(module)
+ 
+ 		# Try to get the class with the same name
+ 		try:

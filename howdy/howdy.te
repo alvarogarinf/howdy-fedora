@@ -1,0 +1,13 @@
+policy_module(howdy, 1.0.0)
+
+# Lets pam_howdy run from the GDM/SDDM greeter and the GDM unlock prompt
+# (xdm_t) use the camera; OpenCV mmaps the V4L2 capture buffers, which is
+# the one permission xdm_t is denied by default
+# Rule taken unchanged from https://github.com/boltgolt/howdy/pull/1118
+
+gen_require(`
+	type xdm_t;
+	type v4l_device_t;
+')
+
+allow xdm_t v4l_device_t:chr_file { map read write open ioctl getattr };

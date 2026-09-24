@@ -1,0 +1,19 @@
+# rpmlint -r howdy/howdy.rpmlintrc howdy/howdy.spec results/howdy/*.rpm
+
+# Fedora only allows PAM modules approved by its security team; pam_howdy.so
+# is the whole point of this package and ships unapproved in a COPR
+addFilter(r"howdy\.x86_64: E: pam-unauthorized-module pam_howdy\.so")
+
+# "xdm" is part of the SELinux domain name xdm_t, not a misspelling
+addFilter(r"howdy-selinux\.noarch: E: spelling-error \('xdm'")
+
+# %ghost for the installed policy module, as in the Fedora SELinux packaging
+# guidelines; semodule creates the real file, whose mode rpm does not verify
+addFilter(r"howdy-selinux\.noarch: W: zero-perms-ghost")
+
+# The rm calls come from the %selinux_modules_install and
+# %selinux_modules_uninstall macros shipped by selinux-policy-devel
+addFilter(r"howdy-selinux\.noarch: W: dangerous-command-in-%post(un)? rm")
+
+# Data-only and policy-only subpackages; the documentation is in howdy
+addFilter(r"howdy-(data|selinux)\.noarch: W: no-documentation")

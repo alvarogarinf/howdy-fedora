@@ -1,0 +1,35 @@
+--- a/howdy/src/rubberstamps/nod.py
++++ b/howdy/src/rubberstamps/nod.py
+@@ -43,7 +43,9 @@
+ 				continue
+ 
+ 			# Get the position of the eyes and tip of the nose
+-			face_landmarks = self.pose_predictor(frame, face_locations[0])
++			# The CNN detector (use_cnn) returns mmod_rectangles, the predictor needs a rectangle
++			face_location = getattr(face_locations[0], "rect", face_locations[0])
++			face_landmarks = self.pose_predictor(frame, face_location)
+ 
+ 			# Calculate the relative distance between the 2 eyes
+ 			reldist = face_landmarks.part(0).x - face_landmarks.part(2).x
+--- a/howdy/src/rubberstamps/__init__.py
++++ b/howdy/src/rubberstamps/__init__.py
+@@ -126,7 +126,8 @@
+ 
+ 			import traceback
+ 			traceback.print_exc()
+-			continue
++			# A stamp that cannot run must not be skipped as if it had passed
++			sys.exit(15)
+ 
+ 		# Split the optional arguments at the end of the rule by spaces
+ 		raw_options = regex_result.group(4).split()
+@@ -165,7 +166,8 @@
+ 
+ 			import traceback
+ 			traceback.print_exc()
+-			continue
++			# A stamp that crashed must not be skipped as if it had passed
++			sys.exit(15)
+ 
+ 		if verbose: print("Stamp \"" + type + "\" returned: " + str(result))
+ 

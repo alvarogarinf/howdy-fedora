@@ -1,0 +1,8 @@
+reference/
+results/
+*.tar.gz
+*.bz2
+*.src.rpm
+*.dat.bz2
+dlib-models-LICENSE
+kissfft-*
