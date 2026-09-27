@@ -26,6 +26,16 @@ colour image, try the next one. Set it and try it:
     sudo howdy set device_path /dev/v4l/by-path/<your-ir-camera>
     sudo howdy test
 
+Some IR sensors only stream raw formats. If reading frames fails with
+"Failed to read camera" and `v4l2-ctl -d <node> --list-formats` lists a
+raw grey format such as Y10, request it explicitly. Configurations from
+before 3.0.0-11 lack these options, so add them under [video] with
+`sudo howdy config` (64 is the black level of many OmniVision sensors in
+10-bit mode):
+
+    pixel_format = Y10
+    raw_black_level = 64
+
 `sudo howdy config` opens the whole configuration in $EDITOR (nano or vi
 by default).
 
