@@ -7,7 +7,7 @@
 
 Name:           howdy
 Version:        3.0.0
-Release:        10%{?dist}
+Release:        11%{?dist}
 Summary:        Windows Hello style facial authentication for Linux
 
 # howdy: MIT
@@ -31,6 +31,10 @@ Patch0:         howdy-rubberstamps-exec-module.patch
 Patch1:         howdy-rubberstamps-fail-closed.patch
 # A misspelled, missing or empty stamp rule must not bypass the extra check
 Patch2:         howdy-rubberstamps-reject-invalid-rules.patch
+# pixel_format and raw_black_level options for IR sensors that only stream raw
+# formats such as Y10 (OmniVision OG0VA1B on Intel IPU6)
+# https://github.com/boltgolt/howdy/pull/1141
+Patch3:         howdy-pixel-format.patch
 
 BuildRequires:  gcc-c++
 BuildRequires:  meson
@@ -230,6 +234,10 @@ fi
 
 
 %changelog
+* Sun Sep 27 2026 Arthur Girard <mailarthurgirard@gmail.com> - 3.0.0-11
+- Add pixel_format and raw_black_level options for raw-only IR sensors
+  (upstream PR #1141)
+
 * Thu Sep 24 2026 Alvaro Garcia Infante <alvarogarciainfante@gmail.com> - 3.0.0-10
 - Skip to Release 10 so dnf upgrades howdy 3.0.0-7 from principis/howdy-beta
   and 3.0.0-9 from ronnypfannschmidt/howdy-beta

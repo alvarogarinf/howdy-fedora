@@ -1,0 +1,109 @@
+From 47aee4e35ff880ec2540dfe14659c994c625e3cc Mon Sep 17 00:00:00 2001
+From: Arthur Girard <mailarthurgirard@gmail.com>
+Date: Sun, 27 Sep 2026 19:01:48 -0400
+Subject: [PATCH] recorders: add pixel_format option for raw IR sensors
+
+Some IR cameras only expose raw formats. The OmniVision OG0VA1B used
+behind Intel IPU6 on recent laptops offers Y10 (10-bit monochrome) and
+nothing else that it can actually stream. OpenCV picks a colour format
+on its own, the capture node accepts it, and every read then fails.
+
+Add a pixel_format option to request a V4L2 format by its four letter
+code, and handle single channel frames in read_frame(). Frames deeper
+than 8 bits get the black level removed (new raw_black_level option)
+and are scaled to 8 bits against the 99.5th percentile, because IR
+frames lit by a weak emitter are very dim.
+
+Both options are off by default, so existing setups are unaffected.
+
+Tested with an OG0VA1B (Y10, 640x480) on an HP Spectre x360 14-eu0xxx,
+pixel_format = Y10 and raw_black_level = 64.
+---
+ howdy/src/config.ini                 | 11 +++++++++++
+ howdy/src/recorders/video_capture.py | 27 +++++++++++++++++++++++++++
+ 2 files changed, 38 insertions(+)
+
+diff --git a/howdy/src/config.ini b/howdy/src/config.ini
+index 789347a..743dd0b 100644
+--- a/howdy/src/config.ini
++++ b/howdy/src/config.ini
+@@ -81,6 +81,17 @@ device_format = v4l2
+ # OPENCV only.
+ force_mjpeg = false
+ 
++# Force the camera to use this V4L2 pixel format, given as its four letter code.
++# Needed for IR sensors that only provide raw formats, e.g. Y10 for a 10-bit
++# monochrome sensor. Leave empty to let OpenCV choose.
++# OPENCV only.
++pixel_format =
++
++# Black level of raw frames (pixel_format Y10, Y12, Y16), subtracted before the
++# frame is scaled down to 8 bits. Many OmniVision sensors use 64 in 10-bit mode.
++# OPENCV only.
++raw_black_level = 0
++
+ # Specify exposure value explicitly. This disables autoexposure.
+ # Use qv4l2 to determine an appropriate value.
+ # OPENCV only.
+diff --git a/howdy/src/recorders/video_capture.py b/howdy/src/recorders/video_capture.py
+index 15888a5..59265fb 100644
+--- a/howdy/src/recorders/video_capture.py
++++ b/howdy/src/recorders/video_capture.py
+@@ -4,6 +4,7 @@
+ # Import required modules
+ import configparser
+ import cv2
++import numpy as np
+ import os
+ import sys
+ 
+@@ -85,6 +86,13 @@ class VideoCapture:
+ 			print(_("Failed to read camera specified in the 'device_path' config option, aborting"))
+ 			sys.exit(14)
+ 
++		# Single channel frames come from grayscale or raw formats, see the
++		# pixel_format option. Deeper than 8 bits gets scaled down first.
++		if frame.ndim == 2:
++			if frame.dtype != np.uint8:
++				frame = self._scale_raw(frame)
++			return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR), frame
++
+ 		try:
+ 			# Convert from color to grayscale
+ 			# First processing of frame, so frame errors show up here
+@@ -96,6 +104,17 @@ class VideoCapture:
+ 			raise
+ 		return frame, gsframe
+ 
++	def _scale_raw(self, frame):
++		"""
++		Scales a raw 10 to 16 bit grayscale frame down to 8 bits. The black
++		level is removed and the brightest 0.5% of pixels are clipped, so a
++		dim IR image still uses the full range.
++		"""
++		black = self.config.getint("video", "raw_black_level", fallback=0)
++		f = np.clip(frame.astype(np.float32) - black, 0, None)
++		top = max(float(np.percentile(f, 99.5)), 1.0)
++		return np.clip(f * (255.0 / top), 0, 255).astype(np.uint8)
++
+ 	def _create_reader(self):
+ 		"""
+ 		Sets up the video reader instance
+@@ -136,6 +155,14 @@ class VideoCapture:
+ 			# Set a magic number, will enable MJPEG but is badly documentated
+ 			self.internal.set(cv2.CAP_PROP_FOURCC, 1196444237)
+ 
++		# Request a specific pixel format, for IR sensors that only offer raw
++		# formats OpenCV does not choose on its own (Y10 for example)
++		pixel_format = self.config.get("video", "pixel_format", fallback="").strip()
++		if pixel_format:
++			self.internal.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*pixel_format.ljust(4)[:4]))
++			# Keep the raw samples, read_frame() scales them down itself
++			self.internal.set(cv2.CAP_PROP_CONVERT_RGB, 0)
++
+ 		# Set the frame width and height if requested
+ 		self.fw = self.config.getint("video", "frame_width", fallback=-1)
+ 		self.fh = self.config.getint("video", "frame_height", fallback=-1)
+-- 
+2.55.0
+
