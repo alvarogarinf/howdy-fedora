@@ -8,6 +8,10 @@ authentication is used, and your password always keeps working.
 The installation section of the upstream README.md does not apply to this
 package; follow this file instead.
 
+Fedora 44 (Python 3.14) and Fedora 45 (Python 3.15) use the same setup
+instructions, with native RPMs built for each release. Do not reuse a
+Fedora 44 python3-dlib RPM on Fedora 45 or enable Rawhide as a workaround.
+
 Face recognition is more convenient than a password, not more secure. A
 similar-looking person or a good photo may be enough to unlock your account.
 
@@ -88,8 +92,13 @@ overwrite your changes. Edit only the per-service files below.
   Plasma Login Manager               /etc/pam.d/plasmalogin (see below)
   KDE Plasma lock screen             /etc/pam.d/kde
 
-Plasma Login Manager ships its configuration in /usr/lib/pam.d. Copy it to
-/etc/pam.d, which takes precedence, and edit the copy:
+Check which login manager is selected; an upgrade may have changed it:
+
+    readlink -f /etc/systemd/system/display-manager.service
+
+Plasma Login Manager ships its configuration in /usr/lib/pam.d. If
+/etc/pam.d/plasmalogin does not already exist, copy it there, then edit
+the copy. Do not overwrite an existing configuration:
 
     sudo cp /usr/lib/pam.d/plasmalogin /etc/pam.d/plasmalogin
 
@@ -145,3 +154,31 @@ screen, look for denials:
 
 Remove the pam_howdy.so lines from every file you edited BEFORE removing
 the package.
+
+
+7. Upgrading Fedora
+--------------------
+
+Before upgrading Fedora, check that the COPR has packages for the target
+release. dlib contains a native Python extension, so its python(abi)
+dependency must match the target Fedora Python. Fedora 44 RPMs cannot
+satisfy this on Fedora 45. Missing builds must be fixed in the COPR;
+changing the repository URL to Fedora 44 or Rawhide is not a solution.
+
+If Howdy had to be removed to complete the OS upgrade, reinstall after
+native packages have been published:
+
+    sudo dnf copr enable alvarogarinf/howdy
+    sudo dnf --refresh install howdy
+
+Check for /etc/howdy/config.ini.rpmsave. RPM may have saved your modified
+configuration there when Howdy was removed. Review it and merge the camera
+path and other settings using `sudo howdy config`. Existing face models in
+/etc/howdy/models are not packaged files and normally survive removal;
+check them with `sudo howdy list` and verify their permissions as in section 2.
+
+Test the camera with `sudo howdy test`, then check the PAM configuration for
+the login manager actually selected, the lock screen and sudo (section 3).
+Test both face authentication and password fallback from a new terminal,
+then at the lock screen and login screen with SELinux enforcing. Keep a
+root shell open until the terminal tests pass.

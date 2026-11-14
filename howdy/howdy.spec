@@ -7,7 +7,7 @@
 
 Name:           howdy
 Version:        3.0.0
-Release:        10%{?dist}
+Release:        11%{?dist}
 Summary:        Windows Hello style facial authentication for Linux
 
 # howdy: MIT
@@ -23,7 +23,7 @@ Source11:       %{models_url}/dlib_face_recognition_resnet_model_v1.dat.bz2
 Source12:       %{models_url}/mmod_human_face_detector.dat.bz2
 Source13:       %{models_url}/LICENSE#/dlib-models-LICENSE
 
-# SourceFileLoader.load_module() was removed in Python 3.15 (Rawhide); no upstream fix yet
+# SourceFileLoader.load_module() was removed in Python 3.15; no upstream fix yet
 Patch0:         howdy-rubberstamps-exec-module.patch
 # nod.py: give the landmark predictor a rectangle when use_cnn is on;
 # rubberstamps: a stamp that raises rejects the login instead of being skipped.
@@ -37,6 +37,9 @@ BuildRequires:  meson
 BuildRequires:  gettext
 BuildRequires:  bzip2
 BuildRequires:  python3-devel
+BuildRequires:  python3dist(dlib)
+BuildRequires:  python3dist(numpy)
+BuildRequires:  python3dist(opencv)
 BuildRequires:  pam-devel
 BuildRequires:  pkgconfig(INIReader)
 BuildRequires:  pkgconfig(libevdev)
@@ -149,6 +152,28 @@ for f in (p.shape_predictor_5_face_landmarks_path(),
           str(p.user_models_dir_path())):
     assert os.path.exists("%{buildroot}" + f), f
 EOF
+
+# Exercise the system Python bindings and shipped models without a camera
+env -i PATH=/usr/bin:/bin PYTHONPATH=%{buildroot}%{_datadir}/%{name} %{python3} - <<'EOF'
+import cv2, dlib, numpy as np, paths_factory as p
+
+def model_path(path):
+    return "%{buildroot}" + path
+
+predictor = dlib.shape_predictor(model_path(p.shape_predictor_5_face_landmarks_path()))
+encoder = dlib.face_recognition_model_v1(model_path(p.dlib_face_recognition_resnet_model_v1_path()))
+cnn = dlib.cnn_face_detection_model_v1(model_path(p.mmod_human_face_detector_path()))
+frame = np.zeros((150, 150, 3), dtype=np.uint8)
+gray = cv2.createCLAHE().apply(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+assert not dlib.get_frontal_face_detector()(gray, 1)
+assert not cnn(gray, 1)
+landmarks = predictor(frame, dlib.rectangle(25, 25, 125, 125))
+assert landmarks.num_parts == 5
+descriptor = np.array(encoder.compute_face_descriptor(frame, landmarks, 1))
+assert descriptor.shape == (128,)
+assert np.isfinite(descriptor).all()
+print("dlib", dlib.__version__, "OpenCV", cv2.__version__, "NumPy", np.__version__)
+EOF
 grep -q '"%{_datadir}/%{name}/compare.py"' %{_vpath_builddir}/howdy/src/pam/paths.hh
 grep -q '"%{python3}"' %{_vpath_builddir}/howdy/src/pam/paths.hh
 
@@ -230,6 +255,10 @@ fi
 
 
 %changelog
+* Sat Nov 14 2026 Alvaro Garcia Infante <alvarogarciainfante@gmail.com> - 3.0.0-11
+- Check the system Python, dlib, NumPy, OpenCV and all shipped models at build time
+- Document Fedora 44/45 builds, COPR chroots and recovery after a Fedora upgrade
+
 * Thu Sep 24 2026 Alvaro Garcia Infante <alvarogarciainfante@gmail.com> - 3.0.0-10
 - Skip to Release 10 so dnf upgrades howdy 3.0.0-7 from principis/howdy-beta
   and 3.0.0-9 from ronnypfannschmidt/howdy-beta

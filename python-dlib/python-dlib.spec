@@ -3,7 +3,7 @@
 
 Name:           python-dlib
 Version:        20.0.1
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Python bindings for the dlib machine learning toolkit
 
 # dlib is BSL-1.0 except:
@@ -27,6 +27,7 @@ BuildRequires:  cmake
 BuildRequires:  pkgconfig
 BuildRequires:  python3-devel
 BuildRequires:  python3-pytest
+BuildRequires:  python3dist(numpy)
 BuildRequires:  pybind11-devel
 BuildRequires:  pkgconfig(flexiblas)
 BuildRequires:  pkgconfig(libjpeg)
@@ -95,6 +96,9 @@ export CMAKE_BUILD_PARALLEL_LEVEL=%{_smp_build_ncpus}
 
 
 %changelog
+* Sat Nov 14 2026 Alvaro Garcia Infante <alvarogarciainfante@gmail.com> - 20.0.1-3
+- Run the NumPy image binding tests when rebuilding for each Fedora Python ABI
+
 * Wed Sep 23 2026 Alvaro Garcia Infante <alvarogarciainfante@gmail.com> - 20.0.1-2
 - Ship the license notices of the bundled KISS FFT and of pybind11
 
